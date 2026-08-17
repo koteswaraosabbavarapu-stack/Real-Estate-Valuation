@@ -1,0 +1,5 @@
+Model,RMSE,MAE,R2
+Linear Regression (Ridge),24366.32,16023.18,0.9226
+XGBoost Regressor,25464.63,15390.3,0.9155
+Gradient Boosting Regressor,28381.21,15973.03,0.895
+Random Forest Regressor,29697.82,17245.72,0.885
