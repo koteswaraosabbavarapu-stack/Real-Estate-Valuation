@@ -246,11 +246,7 @@ with st.sidebar:
     st.markdown(f"**Validation RMSE:** `±{rmse_disp}`")
     st.markdown(f"**Validation MAE:** `±{mae_disp}`")
     
-    st.markdown("---")
-    st.markdown("#### 📖 Project Documentation")
-    st.markdown("- [College Project Report](file:///docs/PROJECT_REPORT.md)")
-    st.markdown("- [Viva Voce Q&A Notes](file:///docs/VIVA_NOTES.md)")
-    st.markdown("- [Data Description Codebook](file:///docs/data_description.txt)")
+
 
 
 # -------------------------------------------------------------
