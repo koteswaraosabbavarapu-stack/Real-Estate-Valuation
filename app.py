@@ -1,6 +1,6 @@
 """
 Real Estate Valuation & Automated Appraisal Engine
-Premium Streamlit Web Application
+Premium Streamlit Web Application with Dual Currency (USD $ & INR ₹) Support
 """
 
 import sys
@@ -34,6 +34,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# USD to INR conversion rate for Indian college viva demonstration
+USD_TO_INR_RATE = 83.50
 
 # Premium Custom CSS
 st.markdown("""
@@ -71,25 +74,6 @@ st.markdown("""
         margin-bottom: 0;
     }
 
-    /* Custom Navigation Pills */
-    .stRadio > div[role="radiogroup"] {
-        display: flex;
-        gap: 0.5rem;
-        background: #f1f5f9;
-        padding: 0.4rem;
-        border-radius: 12px;
-        border: 1px solid #e2e8f0;
-    }
-    .stRadio > div[role="radiogroup"] > label {
-        flex: 1;
-        text-align: center;
-        background: transparent;
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-
     /* Valuation Highlight Card */
     .appraisal-card {
         background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
@@ -109,10 +93,10 @@ st.markdown("""
         color: #e0e7ff;
     }
     .appraisal-amount {
-        font-size: 3rem;
+        font-size: 2.8rem;
         font-weight: 800;
         margin: 0.4rem 0;
-        letter-spacing: -1px;
+        letter-spacing: -0.5px;
         color: #ffffff;
     }
     .appraisal-range {
@@ -138,24 +122,10 @@ st.markdown("""
         letter-spacing: 0.5px;
     }
     .stat-val {
-        font-size: 1.4rem;
+        font-size: 1.35rem;
         font-weight: 700;
         color: #0f172a;
         margin-top: 0.2rem;
-    }
-
-    /* Preset Buttons */
-    .preset-pill {
-        display: inline-block;
-        background: #f8fafc;
-        border: 1px solid #cbd5e1;
-        border-radius: 20px;
-        padding: 0.3rem 0.8rem;
-        font-size: 0.85rem;
-        font-weight: 600;
-        color: #334155;
-        margin-right: 0.4rem;
-        margin-bottom: 0.4rem;
     }
 
     /* Section Subheadings */
@@ -191,6 +161,20 @@ def get_training_df():
 
 metadata = get_metadata()
 train_df = get_training_df()
+
+
+def format_currency(amount_usd: float, currency_choice: str) -> str:
+    """Format amount in USD ($) or Indian Rupees (₹ Lakhs / Crores)"""
+    if currency_choice == "🇮🇳 INR (Indian Rupees ₹)":
+        amount_inr = amount_usd * USD_TO_INR_RATE
+        if amount_inr >= 10000000:
+            crores = amount_inr / 10000000
+            return f"₹{crores:.2f} Cr (₹{amount_inr:,.0f})"
+        else:
+            lakhs = amount_inr / 100000
+            return f"₹{lakhs:.2f} Lakhs (₹{amount_inr:,.0f})"
+    else:
+        return f"${amount_usd:,.2f}"
 
 
 # -------------------------------------------------------------
@@ -236,9 +220,16 @@ with st.sidebar:
     st.caption("Automated Real Estate Appraisal Engine")
     st.markdown("---")
     
-    st.markdown("#### ⚡ Quick Presets")
-    st.write("Load realistic sample homes instantly:")
+    st.markdown("#### 💱 Currency Display")
+    currency_mode = st.radio(
+        "Select Currency:",
+        ["🇺🇸 USD ($)", "🇮🇳 INR (Indian Rupees ₹)"],
+        index=0,
+        help="Toggle between USD ($) and Indian Rupees (₹ Lakhs & Crores) for Viva demonstration"
+    )
     
+    st.markdown("---")
+    st.markdown("#### ⚡ Quick Presets")
     selected_preset = st.selectbox(
         "Choose Property Profile:",
         ["None (Custom Form)"] + list(PROPERTY_PRESETS.keys()),
@@ -248,15 +239,18 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("#### 🎯 Active ML Model")
     st.markdown(f"**Model:** `{metadata.get('best_model_name', 'Ridge Regression')}`")
-    st.markdown(f"**R² Explained Variance:** `{metadata.get('validation_r2', 0.9226):.4f}`")
-    st.markdown(f"**Validation RMSE:** `±${metadata.get('validation_rmse', 24366.32):,.2f}`")
-    st.markdown(f"**Validation MAE:** `±${metadata.get('validation_mae', 16023.18):,.2f}`")
+    st.markdown(f"**R² Score:** `{metadata.get('validation_r2', 0.9226):.4f}`")
+    
+    rmse_disp = format_currency(metadata.get('validation_rmse', 24366.32), currency_mode)
+    mae_disp = format_currency(metadata.get('validation_mae', 16023.18), currency_mode)
+    st.markdown(f"**Validation RMSE:** `±{rmse_disp}`")
+    st.markdown(f"**Validation MAE:** `±{mae_disp}`")
     
     st.markdown("---")
-    st.markdown("#### 📖 Project Quick Links")
+    st.markdown("#### 📖 Project Documentation")
     st.markdown("- [College Project Report](file:///docs/PROJECT_REPORT.md)")
     st.markdown("- [Viva Voce Q&A Notes](file:///docs/VIVA_NOTES.md)")
-    st.markdown("- [Project Documentation](file:///README.md)")
+    st.markdown("- [Data Description Codebook](file:///docs/data_description.txt)")
 
 
 # -------------------------------------------------------------
@@ -265,7 +259,7 @@ with st.sidebar:
 st.markdown("""
 <div class="top-hero-banner">
     <div class="hero-title">🏡 Real Estate Valuation & Automated Appraisal Engine</div>
-    <div class="hero-tagline">Advanced Regression System trained on the Ames Housing Dataset with 92.26% Explained Price Variance</div>
+    <div class="hero-tagline">Advanced Regression System trained on 79 property characteristics with 92.26% Explained Price Variance</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -282,7 +276,6 @@ nav_tab1, nav_tab2, nav_tab3, nav_tab4 = st.tabs([
 # TAB 1: PROPERTY APPRAISAL ENGINE
 # -------------------------------------------------------------
 with nav_tab1:
-    # Determine default values based on preset selection
     preset_data = PROPERTY_PRESETS.get(selected_preset, {})
 
     st.markdown("<div class='section-head'>⚙️ Property Configuration & Specifications</div>", unsafe_allow_html=True)
@@ -391,18 +384,29 @@ with nav_tab1:
         st.markdown("<div class='section-head'>💵 Market Valuation Report</div>", unsafe_allow_html=True)
         
         # Live Prediction Calculation
-        estimated_price = predict_house_price(property_input)
-        rmse_val = metadata.get("validation_rmse", 24366.32)
-        lower_bound = max(15000, estimated_price - rmse_val)
-        upper_bound = estimated_price + rmse_val
-        price_per_sqft = estimated_price / max(1, gr_liv_area)
+        estimated_price_usd = predict_house_price(property_input)
+        rmse_val_usd = metadata.get("validation_rmse", 24366.32)
+        lower_bound_usd = max(15000, estimated_price_usd - rmse_val_usd)
+        upper_bound_usd = estimated_price_usd + rmse_val_usd
+
+        # Currency formatting
+        disp_price = format_currency(estimated_price_usd, currency_mode)
+        disp_lower = format_currency(lower_bound_usd, currency_mode)
+        disp_upper = format_currency(upper_bound_usd, currency_mode)
+
+        if currency_mode == "🇮🇳 INR (Indian Rupees ₹)":
+            price_per_sqft_val = (estimated_price_usd * USD_TO_INR_RATE) / max(1, gr_liv_area)
+            disp_sqft = f"₹{price_per_sqft_val:,.0f} / sq ft"
+        else:
+            price_per_sqft_val = estimated_price_usd / max(1, gr_liv_area)
+            disp_sqft = f"${price_per_sqft_val:.2f} / sq ft"
 
         # Tier Classification
-        if estimated_price > 350000:
+        if estimated_price_usd > 350000:
             tier_badge = "👑 Luxury Tier"
-        elif estimated_price > 200000:
+        elif estimated_price_usd > 200000:
             tier_badge = "🌟 Premium Upper-Mid Tier"
-        elif estimated_price > 130000:
+        elif estimated_price_usd > 130000:
             tier_badge = "🏡 Standard Residential Tier"
         else:
             tier_badge = "🏷️ Affordable Entry Tier"
@@ -410,8 +414,8 @@ with nav_tab1:
         st.markdown(f"""
         <div class='appraisal-card'>
             <div class='appraisal-label'>{tier_badge} • Automated Fair Market Value</div>
-            <div class='appraisal-amount'>${estimated_price:,.2f}</div>
-            <div class='appraisal-range'>Statistical Range: <b>${lower_bound:,.0f} — ${upper_bound:,.0f}</b> (±${rmse_val:,.0f} RMSE)</div>
+            <div class='appraisal-amount'>{disp_price}</div>
+            <div class='appraisal-range'>Statistical Confidence Range: <b>{disp_lower} — {disp_upper}</b></div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -419,15 +423,15 @@ with nav_tab1:
         with sc1:
             st.markdown(f"""
             <div class='stat-box'>
-                <div class='stat-label'>Price / Sq Ft</div>
-                <div class='stat-val'>${price_per_sqft:.1f}</div>
+                <div class='stat-label'>Rate / Sq Ft</div>
+                <div class='stat-val'>{disp_sqft}</div>
             </div>
             """, unsafe_allow_html=True)
         with sc2:
             st.markdown(f"""
             <div class='stat-box'>
-                <div class='stat-label'>Total Indoor SF</div>
-                <div class='stat-val'>{gr_liv_area + total_bsmt_sf:,.0f}</div>
+                <div class='stat-label'>Total Floor Area</div>
+                <div class='stat-val'>{gr_liv_area + total_bsmt_sf:,.0f} sq ft</div>
             </div>
             """, unsafe_allow_html=True)
         with sc3:
@@ -441,11 +445,11 @@ with nav_tab1:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("#### 📋 Appraisal Factsheet")
         st.markdown(f"""
-        - **Neighborhood Cluster:** `{neighborhood}`
-        - **Quality & Condition:** Quality `{overall_qual}/10` • Condition `{overall_cond}/9`
-        - **Room Allocation:** `{bedrooms} Bedrooms` • `{full_bath + 0.5*half_bath} Baths` • `{tot_rms} Total Rooms`
-        - **Garage & Parking:** `{garage_cars} Cars` ({garage_area} sq ft)
-        - **Outdoor Living:** `{wood_deck_sf} sq ft` Deck Area
+        - **Location / Neighborhood:** `{neighborhood}`
+        - **Quality & Condition:** Material Quality `{overall_qual}/10` • Condition `{overall_cond}/9`
+        - **Layout Configuration:** `{bedrooms} Bedrooms` • `{full_bath + 0.5*half_bath} Bathrooms` • `{tot_rms} Total Rooms`
+        - **Garage & Parking:** `{garage_cars} Car Capacity` ({garage_area} sq ft garage area)
+        - **Outdoor Space:** `{wood_deck_sf} sq ft` Deck Area
         """)
 
 
@@ -459,15 +463,22 @@ with nav_tab2:
     csv_path = PROJECT_ROOT / "outputs" / "results" / "model_comparison.csv"
     if csv_path.exists():
         comp_df = pd.read_csv(csv_path)
-        st.dataframe(
-            comp_df.style.format({
-                "RMSE": "${:,.2f}",
-                "MAE": "${:,.2f}",
-                "R2": "{:.4f}"
-            }).highlight_min(subset=["RMSE", "MAE"], color="#dcfce7")
-              .highlight_max(subset=["R2"], color="#dcfce7"),
-            use_container_width=True
-        )
+        if currency_mode == "🇮🇳 INR (Indian Rupees ₹)":
+            comp_disp_df = comp_df.copy()
+            comp_disp_df["RMSE (₹)"] = [f"₹{(val * USD_TO_INR_RATE / 100000):.2f} Lakhs" for val in comp_df["RMSE"]]
+            comp_disp_df["MAE (₹)"] = [f"₹{(val * USD_TO_INR_RATE / 100000):.2f} Lakhs" for val in comp_df["MAE"]]
+            comp_disp_df = comp_disp_df[["Model", "RMSE (₹)", "MAE (₹)", "R2"]]
+            st.dataframe(comp_disp_df, use_container_width=True)
+        else:
+            st.dataframe(
+                comp_df.style.format({
+                    "RMSE": "${:,.2f}",
+                    "MAE": "${:,.2f}",
+                    "R2": "{:.4f}"
+                }).highlight_min(subset=["RMSE", "MAE"], color="#dcfce7")
+                  .highlight_max(subset=["R2"], color="#dcfce7"),
+                use_container_width=True
+            )
 
     st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("### 📈 Visual Validation & Residuals")
@@ -531,8 +542,9 @@ with nav_tab4:
             with st.spinner("Calculating property valuations..."):
                 preds = predict_house_price(batch_df)
                 result_df = batch_df.copy()
-                result_df["Estimated_SalePrice"] = preds
-                result_df["Estimated_Price_Formatted"] = [f"${p:,.2f}" for p in preds]
+                result_df["Estimated_SalePrice_USD"] = preds
+                result_df["Estimated_SalePrice_INR"] = [round(p * USD_TO_INR_RATE, 2) for p in preds]
+                result_df["Formatted_Valuation"] = [format_currency(p, currency_mode) for p in preds]
                 st.dataframe(result_df.head(25), use_container_width=True)
 
                 csv_data = result_df.to_csv(index=False).encode("utf-8")
@@ -551,5 +563,5 @@ with nav_tab4:
             if st.button("Appraise Sample Properties Above", type="primary"):
                 sample_preds = predict_house_price(sample_df)
                 sample_res = sample_df[["Id", "Neighborhood", "OverallQual", "YearBuilt", "GrLivArea"]].copy()
-                sample_res["Estimated_SalePrice"] = [f"${p:,.2f}" for p in sample_preds]
+                sample_res["Estimated_Valuation"] = [format_currency(p, currency_mode) for p in sample_preds]
                 st.dataframe(sample_res, use_container_width=True)
