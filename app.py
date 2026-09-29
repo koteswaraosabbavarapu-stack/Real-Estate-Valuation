@@ -377,15 +377,14 @@ st.markdown("""
 
 
 # -------------------------------------------------------------
-# TOP NAVIGATION TABS (6 DEDICATED MODULES)
+# TOP NAVIGATION TABS (5 DEDICATED MODULES)
 # -------------------------------------------------------------
-nav_tab1, nav_tab2, nav_tab3, nav_tab4, nav_tab5, nav_tab6 = st.tabs([
+nav_tab1, nav_tab2, nav_tab3, nav_tab4, nav_tab5 = st.tabs([
     "🏠 Property Appraisal",
     "📊 Model Performance",
     "📈 Market Analytics (EDA)",
     "📂 Bulk CSV Valuation",
-    "🏦 Home Loan & EMI Planner",
-    "🗺️ Website Workflow & Architecture"
+    "🏦 Home Loan & EMI Planner"
 ])
 
 
@@ -754,96 +753,3 @@ with nav_tab5:
             </div>
             """, unsafe_allow_html=True)
 
-
-# -------------------------------------------------------------
-# MODULE 6: SYSTEM WORKFLOW & ARCHITECTURE GUIDE
-# -------------------------------------------------------------
-with nav_tab6:
-    st.markdown("<div class='ui-section-title'>🗺️ End-to-End System Architecture & Working Flow</div>", unsafe_allow_html=True)
-    st.markdown("Detailed breakdown of how the **BharatProp AI Real Estate Valuation Engine** ingests datasets, processes spatial features, trains machine learning models, and serves real-time appraisals:")
-
-    wf_col1, wf_col2 = st.columns([1, 1], gap="large")
-
-    with wf_col1:
-        st.markdown("""
-        <div class='step-card'>
-            <div class='step-card-num'>STEP 1 • DATA INGESTION & CODEBOOK</div>
-            <div class='step-card-title'>Official Datasets & Feature Metadata</div>
-            <p>The system is built upon four interconnected data artifacts:</p>
-            <ul>
-                <li><b>train.csv:</b> 1,460 historical property transactions with 79 explanatory features and ground truth <code>SalePrice</code>.</li>
-                <li><b>test.csv:</b> 1,460 test properties for benchmark evaluations.</li>
-                <li><b>sample_submission.csv:</b> Standard output schema for portfolio valuations.</li>
-                <li><b>data_description.txt:</b> Detailed codebook defining categorical labels, zoning, architectural styles, and quality ratings.</li>
-            </ul>
-        </div>
-
-        <div class='step-card'>
-            <div class='step-card-num'>STEP 2 • DATA CLEANING & LEAKAGE PREVENTION</div>
-            <div class='step-card-title'>Domain-Aware Imputation Strategy</div>
-            <p>Missing value handling follows real estate domain realities:</p>
-            <ul>
-                <li><b>Amenity Absences:</b> Categoricals like <code>PoolQC</code>, <code>FireplaceQu</code>, <code>GarageType</code>, and <code>BsmtQual</code> where <code>NA</code> means "No Amenity" are explicitly transformed to the category <code>"None"</code>.</li>
-                <li><b>Numerical Median Imputation:</b> Numerical gaps (e.g., <code>LotFrontage</code>) are imputed with training medians to resist extreme outlier distortion.</li>
-                <li><b>Strict Training Fit:</b> All scalers, imputers, and encoders are fit strictly on the 80% training partition to avoid data leakage.</li>
-            </ul>
-        </div>
-
-        <div class='step-card'>
-            <div class='step-card-num'>STEP 3 • FEATURE ENGINEERING</div>
-            <div class='step-card-title'>Composite Real Estate Synthetics</div>
-            <p>Engineering multidimensional composite metrics from raw features:</p>
-            <ul>
-                <li><b>TotalSF:</b> Built-up living area = <code>TotalBsmtSF + 1stFlrSF + 2ndFlrSF</code></li>
-                <li><b>TotalBathrooms:</b> <code>FullBath + 0.5*HalfBath + BsmtFullBath + 0.5*BsmtHalfBath</code></li>
-                <li><b>TotalPorchSF:</b> Balcony, deck, open & screened porch space sum.</li>
-                <li><b>HouseAge & RemodAge:</b> Calculated dynamically from transaction year.</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with wf_col2:
-        st.markdown("""
-        <div class='step-card' style='border-left-color: #059669;'>
-            <div class='step-card-num' style='color: #059669;'>STEP 4 • TARGET NORMALIZATION & ML TRAINING</div>
-            <div class='step-card-title'>Log-Target Regression & Model Selection</div>
-            <p>Training and evaluating multiple supervised learning algorithms:</p>
-            <ul>
-                <li><b>Target Transformation:</b> Raw property prices exhibit positive skew (1.88). Applying <code>log1p(SalePrice)</code> normalizes skewness to <b>0.12</b>, stabilizing residual error variance.</li>
-                <li><b>Evaluated Algorithms:</b> Linear Ridge ($L_2$), XGBoost Regressor, Gradient Boosting, and Random Forest.</li>
-                <li><b>Winning Champion:</b> <b>Regularized Ridge Regression ($R^2 = 0.9226$)</b> won with the lowest validation RMSE, perfectly handling high-dimensional one-hot encoded localities without overfitting.</li>
-            </ul>
-        </div>
-
-        <div class='step-card' style='border-left-color: #059669;'>
-            <div class='step-card-num' style='color: #059669;'>STEP 5 • INDIAN LOCALIZATION & LIVE INFERENCE</div>
-            <div class='step-card-title'>Real-Time Dual Currency & Locality Engine</div>
-            <p>Translating statistical predictions into actionable Indian real estate insights:</p>
-            <ul>
-                <li><b>Locality Mapping:</b> 25 spatial neighborhood codes are mapped to prominent Indian tech corridors and heritage zones across Karnataka, Telangana, Maharashtra, Andhra Pradesh, and Delhi-NCR.</li>
-                <li><b>Dual Currency Translation:</b> Automatic conversion into <b>₹ Lakhs & Crores</b>, calculating <b>₹ per sq ft</b> and equivalent plot size in <b>Sq. Yards (Gaj)</b>.</li>
-            </ul>
-        </div>
-
-        <div class='step-card' style='border-left-color: #059669;'>
-            <div class='step-card-num' style='color: #059669;'>STEP 6 • FINANCIAL PLANNING & AMORTIZATION</div>
-            <div class='step-card-title'>Home Loan & Monthly EMI Calculator</div>
-            <p>Integrated consumer banking calculators aligned with SBI and HDFC guidelines, allowing instant calculation of monthly EMIs, principal loan, down payments, and loan-to-value (LTV) limits.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 🏛️ **System Workflow Architecture Flowchart**")
-    
-    st.markdown("""
-    ```mermaid
-    flowchart TD
-        A[📂 Raw Datasets: train.csv, test.csv, sample_submission.csv, data_description.txt] --> B[🧹 Data Preprocessing & Missing Category Cleaner]
-        B --> C[⚙️ Composite Feature Engineering: TotalSF, HouseAge, TotalBathrooms]
-        C --> D[📉 Log1p Target Transformation: Normalizes Skewness to 0.12]
-        D --> E[🤖 Supervised Model Training: Ridge L2, XGBoost, GBDT, Random Forest]
-        E --> F[🏆 Champion Model Pipeline: Ridge Regressor R²=0.9226]
-        F --> G[🇮🇳 Indian Localization & Rupee Currency Engine: ₹ Lakhs & Crores]
-        G --> H[🏠 Interactive Web UI: Property Appraisal, EDA, Bulk CSV, EMI Planner]
-    ```
-    """)
