@@ -1,113 +1,105 @@
 """
-Preprocessing Module for Real Estate Valuation System.
+Preprocessing Module for Indian Real Estate Valuation System.
 Builds scikit-learn ColumnTransformer and full pipeline architectures.
+Handles numerical scaling, missing value imputation, categorical one-hot encoding for City,
+and target encoding for micro-market Location without data leakage.
 """
 
 import sys
 from pathlib import Path
+from typing import List, Tuple
+import numpy as np
+import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder, RobustScaler, StandardScaler, TargetEncoder
+from sklearn.pipeline import Pipeline
 
-# Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from typing import List, Tuple
-import numpy as np
-import pandas as pd
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
-from sklearn.pipeline import Pipeline
-
-from src.feature_engineering import HouseFeatureEngineer
+from src.feature_engineering import IndianHouseFeatureEngineer, ALL_AMENITY_COLS
 
 
-# Categorical features where 'NA' means absence of that amenity
-NONE_CAT_COLS = [
-    "PoolQC", "MiscFeature", "Alley", "Fence", "FireplaceQu",
-    "GarageType", "GarageFinish", "GarageQual", "GarageCond",
-    "BsmtQual", "BsmtCond", "BsmtExposure", "BsmtFinType1", "BsmtFinType2",
-    "MasVnrType"
-]
-
-
-class DatasetCategoricalCleaner(BaseEstimator, TransformerMixin):
+def get_feature_column_names(df_engineered: pd.DataFrame) -> Tuple[List[str], List[str], List[str]]:
     """
-    Cleans domain-specific categorical features:
-    Replaces NA with 'None' for amenities where NA denotes absence of the feature.
+    Identify numerical, city, and location column names from an engineered DataFrame.
     """
+    exclude_cols = ["Price", "Price_per_sqft", "Price_Lakhs", "Id"]
+    available_cols = [c for c in df_engineered.columns if c not in exclude_cols]
 
-    def __init__(self, none_cols: List[str] = None):
-        self.none_cols = none_cols or NONE_CAT_COLS
+    city_cols = ["City"] if "City" in available_cols else []
+    loc_cols = ["Location"] if "Location" in available_cols else []
+    
+    num_cols = [
+        c for c in available_cols
+        if c not in ["City", "Location"] and (
+            pd.api.types.is_numeric_dtype(df_engineered[c]) or c in ALL_AMENITY_COLS or
+            c in ["Area", "No. of Bedrooms", "Resale", "Area_per_BHK", "BHK_x_Area", "Furnishing_Score", "Recreation_Score", "Security_Score", "Total_Amenities"]
+        )
+    ]
 
-    def fit(self, X, y=None):
-        return self
-
-    def transform(self, X):
-        df = X.copy()
-        for col in self.none_cols:
-            if col in df.columns:
-                df[col] = df[col].fillna("None").astype(str)
-        return df
+    return num_cols, city_cols, loc_cols
 
 
-def get_feature_column_names(df_engineered: pd.DataFrame) -> Tuple[List[str], List[str]]:
+def build_preprocessor(num_cols: List[str], city_cols: List[str], loc_cols: List[str]) -> ColumnTransformer:
     """
-    Identify numerical and categorical column names from an engineered DataFrame.
-    """
-    cols_to_exclude = ["Id", "SalePrice"]
-    available_cols = [c for c in df_engineered.columns if c not in cols_to_exclude]
-
-    num_cols = df_engineered[available_cols].select_dtypes(include=[np.number]).columns.tolist()
-    cat_cols = df_engineered[available_cols].select_dtypes(exclude=[np.number]).columns.tolist()
-
-    return num_cols, cat_cols
-
-
-def build_preprocessor(num_cols: List[str], cat_cols: List[str]) -> ColumnTransformer:
-    """
-    Construct ColumnTransformer for numerical and categorical features.
+    Construct ColumnTransformer for numerical, city, and location features.
 
     Numerical Pipeline:
     - Median Imputation
-    - StandardScaler
+    - RobustScaler (handles real estate skewed distributions and outliers)
 
-    Categorical Pipeline:
-    - Missing Imputation (constant 'Missing')
+    City Pipeline:
+    - Imputer (constant 'Unknown')
     - OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+
+    Location Pipeline:
+    - Imputer (constant 'Unknown')
+    - TargetEncoder(target_type='continuous', smooth='auto') for 1,700+ distinct micro-markets
     """
     num_pipeline = Pipeline([
         ("imputer", SimpleImputer(strategy="median")),
-        ("scaler", StandardScaler()),
+        ("scaler", RobustScaler()),
     ])
 
-    cat_pipeline = Pipeline([
-        ("imputer", SimpleImputer(strategy="constant", fill_value="Missing")),
+    city_pipeline = Pipeline([
+        ("imputer", SimpleImputer(strategy="constant", fill_value="Unknown")),
         ("onehot", OneHotEncoder(handle_unknown="ignore", sparse_output=False)),
     ])
 
+    loc_pipeline = Pipeline([
+        ("imputer", SimpleImputer(strategy="constant", fill_value="Unknown")),
+        ("target_enc", TargetEncoder(target_type="continuous", smooth="auto")),
+    ])
+
+    transformers = [
+        ("num", num_pipeline, num_cols),
+    ]
+
+    if city_cols:
+        transformers.append(("city", city_pipeline, city_cols))
+    if loc_cols:
+        transformers.append(("loc", loc_pipeline, loc_cols))
+
     preprocessor = ColumnTransformer(
-        transformers=[
-            ("num", num_pipeline, num_cols),
-            ("cat", cat_pipeline, cat_cols),
-        ],
+        transformers=transformers,
         remainder="drop"
     )
 
     return preprocessor
 
 
-def build_full_pipeline(regressor, num_cols: List[str], cat_cols: List[str]) -> Pipeline:
+def build_full_pipeline(regressor, num_cols: List[str], city_cols: List[str], loc_cols: List[str]) -> Pipeline:
     """
     Build complete end-to-end Pipeline:
-    Raw Data -> Categorical Cleaning -> Feature Engineering -> Preprocessor (Imputation/Encoding/Scaling) -> Regressor
+    Raw Data -> Feature Engineering -> Preprocessor (Imputation / Scaling / Encoding) -> Regressor
     """
-    preprocessor = build_preprocessor(num_cols, cat_cols)
+    preprocessor = build_preprocessor(num_cols, city_cols, loc_cols)
 
     pipeline = Pipeline([
-        ("cleaner", DatasetCategoricalCleaner()),
-        ("feature_engineer", HouseFeatureEngineer()),
+        ("feature_engineer", IndianHouseFeatureEngineer()),
         ("preprocessor", preprocessor),
         ("regressor", regressor)
     ])
@@ -116,26 +108,22 @@ def build_full_pipeline(regressor, num_cols: List[str], cat_cols: List[str]) -> 
 
 
 if __name__ == "__main__":
-    from src.data_loader import load_train_data
+    from src.data_loader import load_clean_housing_data
     from sklearn.linear_model import Ridge
 
     print("Testing Preprocessing Module...")
-    raw_df = load_train_data()
-    X = raw_df.drop(columns=["SalePrice"])
-    y = raw_df["SalePrice"]
+    clean_df = load_clean_housing_data()
+    X = clean_df.drop(columns=["Price", "Price_per_sqft", "Price_Lakhs"], errors="ignore")
+    y = np.log1p(clean_df["Price"])
 
-    # Test feature extraction after engineering
-    fe = HouseFeatureEngineer()
-    cleaner = DatasetCategoricalCleaner()
-    df_transformed = fe.transform(cleaner.transform(X))
-    num_cols, cat_cols = get_feature_column_names(df_transformed)
+    fe = IndianHouseFeatureEngineer()
+    X_fe = fe.transform(X)
+    num_cols, city_cols, loc_cols = get_feature_column_names(X_fe)
+    print(f"Features: {len(num_cols)} Numerical, {len(city_cols)} City, {len(loc_cols)} Location")
 
-    print(f"Identified {len(num_cols)} numerical and {len(cat_cols)} categorical features.")
-
-    pipe = build_full_pipeline(Ridge(), num_cols, cat_cols)
+    pipe = build_full_pipeline(Ridge(alpha=10.0), num_cols, city_cols, loc_cols)
     pipe.fit(X, y)
     preds = pipe.predict(X.head())
-    print("Sample pipeline predictions on first 5 properties:")
-    for i, p in enumerate(preds):
-        print(f"  Property {i+1}: Actual ${y.iloc[i]:,.2f} | Predicted ${p:,.2f}")
-    print("Preprocessing Module tested successfully!")
+    print("Sample pipeline predicted log1p prices:", preds[:3])
+    print("Converted to INR (Rupees):", np.expm1(preds[:3]))
+    print("Preprocessing Module test completed successfully!")

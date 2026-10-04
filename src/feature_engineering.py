@@ -1,105 +1,151 @@
 """
-Feature Engineering Module for Real Estate Valuation System.
+Feature Engineering Module for Indian Real Estate Valuation System.
 Implements domain-specific engineered features as a scikit-learn compatible Transformer.
+Avoids data leakage: strictly engineered from property attributes without referencing target price.
 """
 
+import sys
+from pathlib import Path
+from typing import List, Optional
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 
+# Default amenity lists
+FURNISHING_ITEMS = [
+    "AC", "BED", "TV", "DiningTable", "Sofa", "Wardrobe", "Refrigerator", "Microwave", "WashingMachine"
+]
 
-class HouseFeatureEngineer(BaseEstimator, TransformerMixin):
+RECREATION_ITEMS = [
+    "Gymnasium", "SwimmingPool", "ClubHouse", "SportsFacility", "IndoorGames",
+    "JoggingTrack", "LandscapedGardens", "Children'splayarea", "GolfCourse"
+]
+
+SECURITY_ITEMS = [
+    "24X7Security", "Intercom", "PowerBackup", "MaintenanceStaff", "LiftAvailable"
+]
+
+ALL_AMENITY_COLS = [
+    "MaintenanceStaff", "Gymnasium", "SwimmingPool", "LandscapedGardens",
+    "JoggingTrack", "RainWaterHarvesting", "IndoorGames", "ShoppingMall",
+    "Intercom", "SportsFacility", "ATM", "ClubHouse", "School", "24X7Security",
+    "PowerBackup", "CarParking", "StaffQuarter", "Cafeteria", "MultipurposeRoom",
+    "Hospital", "WashingMachine", "Gasconnection", "AC", "Wifi",
+    "Children'splayarea", "LiftAvailable", "BED", "VaastuCompliant",
+    "Microwave", "GolfCourse", "TV", "DiningTable", "Sofa", "Wardrobe",
+    "Refrigerator"
+]
+
+
+class IndianHouseFeatureEngineer(BaseEstimator, TransformerMixin):
     """
-    Custom Scikit-Learn Transformer for Engineering Domain-Specific Features:
-    - TotalSF: Total square footage across basement, 1st floor, and 2nd floor.
-    - TotalBathrooms: Combined full and half baths (including basement).
-    - TotalPorchSF: Sum of deck, open porch, enclosed porch, 3-season, and screen porch area.
-    - HouseAge: Age of property at time of sale.
-    - RemodAge: Years since remodel at time of sale.
-    - GarageAge: Age of garage at time of sale.
-    - HasPool, HasGarage, HasBsmt, HasFireplace: Indicator flags for key luxury amenities.
+    Custom Scikit-Learn Transformer for Engineering Domain-Specific Features
+    in Indian Residential Real Estate:
+
+    - Area_per_BHK: Built-up square footage per bedroom (spaciousness indicator).
+    - BHK_x_Area: Non-linear interaction between bedroom count and total floor area.
+    - Furnishing_Score: Count of premium home appliances and furniture items.
+    - Security_Score: Composite index of security, power, and building maintenance.
+    - Recreation_Score: Composite index of club, fitness, sports, and green landscape.
+    - Total_Amenities: Total active amenities count across 35 residential features.
+    - Clean Location & City: Normalized text representations.
     """
 
-    def __init__(self):
-        pass
+    def __init__(
+        self,
+        furnishing_items: Optional[List[str]] = None,
+        recreation_items: Optional[List[str]] = None,
+        security_items: Optional[List[str]] = None,
+        amenity_cols: Optional[List[str]] = None
+    ):
+        self.furnishing_items = furnishing_items or FURNISHING_ITEMS
+        self.recreation_items = recreation_items or RECREATION_ITEMS
+        self.security_items = security_items or SECURITY_ITEMS
+        self.amenity_cols = amenity_cols or ALL_AMENITY_COLS
 
-    def fit(self, X, y=None):
+    def fit(self, X: pd.DataFrame, y=None):
         return self
 
-    def transform(self, X):
-        # Create copy to prevent modifying original dataframe
+    def transform(self, X: pd.DataFrame) -> pd.DataFrame:
         df = X.copy()
 
-        # Fill missing values for calculation columns safely with 0
-        def safe_get(col, default=0.0):
+        # Helper to extract numeric series safely
+        def safe_numeric(col_name: str, default_val: float = 0.0) -> pd.Series:
+            if col_name in df.columns:
+                return pd.to_numeric(df[col_name], errors="coerce").fillna(default_val)
+            return pd.Series(default_val, index=df.index)
+
+        # 1. Clean amenity columns (replace 9 or NaN with 0)
+        for col in self.amenity_cols:
             if col in df.columns:
-                return pd.to_numeric(df[col], errors="coerce").fillna(default)
-            return default
+                df[col] = df[col].replace(9, 0).fillna(0).astype(int)
+            else:
+                df[col] = 0
 
-        total_bsmt_sf = safe_get("TotalBsmtSF")
-        first_flr_sf = safe_get("1stFlrSF")
-        second_flr_sf = safe_get("2ndFlrSF")
-        
-        # 1. Total Square Footage
-        df["TotalSF"] = total_bsmt_sf + first_flr_sf + second_flr_sf
+        area = safe_numeric("Area", default_val=1000.0)
+        bhk = safe_numeric("No. of Bedrooms", default_val=2.0)
+        resale = safe_numeric("Resale", default_val=0.0)
 
-        # 2. Total Bathrooms
-        full_bath = safe_get("FullBath")
-        half_bath = safe_get("HalfBath")
-        bsmt_full_bath = safe_get("BsmtFullBath")
-        bsmt_half_bath = safe_get("BsmtHalfBath")
-        df["TotalBathrooms"] = full_bath + (0.5 * half_bath) + bsmt_full_bath + (0.5 * bsmt_half_bath)
+        # Ensure valid lower bounds
+        area = np.maximum(area, 200.0)
+        bhk = np.maximum(bhk, 1.0)
 
-        # 3. Total Porch & Outdoor Living Area
-        wood_deck_sf = safe_get("WoodDeckSF")
-        open_porch_sf = safe_get("OpenPorchSF")
-        enclosed_porch = safe_get("EnclosedPorch")
-        three_ssn_porch = safe_get("3SsnPorch")
-        screen_porch = safe_get("ScreenPorch")
-        df["TotalPorchSF"] = wood_deck_sf + open_porch_sf + enclosed_porch + three_ssn_porch + screen_porch
+        # 2. Area per bedroom (spaciousness ratio)
+        df["Area_per_BHK"] = area / bhk
 
-        # 4. Property Age Calculations
-        yr_sold = safe_get("YrSold", default=2010)
-        year_built = safe_get("YearBuilt", default=1970)
-        year_remod = safe_get("YearRemodAdd", default=1970)
-        garage_yr = safe_get("GarageYrBlt", default=year_built)
+        # 3. BHK and Area interaction
+        df["BHK_x_Area"] = bhk * area
 
-        df["HouseAge"] = np.maximum(0, yr_sold - year_built)
-        df["RemodAge"] = np.maximum(0, yr_sold - year_remod)
-        df["GarageAge"] = np.maximum(0, yr_sold - garage_yr)
+        # 4. Domain score features
+        f_cols = [c for c in self.furnishing_items if c in df.columns]
+        df["Furnishing_Score"] = df[f_cols].sum(axis=1) if f_cols else 0
 
-        # 5. Amenity indicator features
-        pool_area = safe_get("PoolArea")
-        garage_area = safe_get("GarageArea")
-        fireplaces = safe_get("Fireplaces")
+        r_cols = [c for c in self.recreation_items if c in df.columns]
+        df["Recreation_Score"] = df[r_cols].sum(axis=1) if r_cols else 0
 
-        df["HasPool"] = (pool_area > 0).astype(int)
-        df["HasGarage"] = (garage_area > 0).astype(int)
-        df["HasBsmt"] = (total_bsmt_sf > 0).astype(int)
-        df["HasFireplace"] = (fireplaces > 0).astype(int)
+        s_cols = [c for c in self.security_items if c in df.columns]
+        df["Security_Score"] = df[s_cols].sum(axis=1) if s_cols else 0
 
-        # Drop identifier if present
-        if "Id" in df.columns:
-            df = df.drop(columns=["Id"])
+        a_cols = [c for c in self.amenity_cols if c in df.columns]
+        df["Total_Amenities"] = df[a_cols].sum(axis=1) if a_cols else 0
+
+        # 5. Clean categorical location and city text
+        if "Location" in df.columns:
+            df["Location"] = df["Location"].astype(str).str.strip()
+        else:
+            df["Location"] = "Unknown"
+
+        if "City" in df.columns:
+            df["City"] = df["City"].astype(str).str.strip()
+        else:
+            df["City"] = "Unknown"
+
+        # Drop ID or unneeded target leakage columns if present
+        for col in ["Id", "Price", "Price_per_sqft", "Price_Lakhs"]:
+            if col in df.columns:
+                df = df.drop(columns=[col])
 
         return df
 
 
 def engineer_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Helper function to apply HouseFeatureEngineer to a DataFrame directly.
+    Helper function to apply IndianHouseFeatureEngineer to a DataFrame directly.
     """
-    fe = HouseFeatureEngineer()
+    fe = IndianHouseFeatureEngineer()
     return fe.transform(df)
 
 
 if __name__ == "__main__":
-    from data_loader import load_train_data
-    raw_df = load_train_data()
-    print("Testing Feature Engineering Module...")
-    engineered = engineer_features(raw_df)
-    print(f"Original columns: {raw_df.shape[1]}, Engineered columns: {engineered.shape[1]}")
-    print("Engineered features preview:")
-    preview_cols = ["TotalSF", "TotalBathrooms", "TotalPorchSF", "HouseAge", "RemodAge", "HasGarage", "HasFireplace"]
-    print(engineered[preview_cols].head())
-    print("Feature Engineering Module tested successfully!")
+    from src.data_loader import load_clean_housing_data
+    
+    print("Testing Indian House Feature Engineering Module...")
+    df = load_clean_housing_data()
+    X = df.drop(columns=["Price", "Price_per_sqft", "Price_Lakhs"], errors="ignore")
+    fe = IndianHouseFeatureEngineer()
+    X_trans = fe.transform(X)
+    print(f"Original shape: {X.shape}, Transformed shape: {X_trans.shape}")
+    print("Engineered feature columns preview:")
+    preview_cols = ["City", "Location", "Area", "No. of Bedrooms", "Area_per_BHK", "BHK_x_Area", "Furnishing_Score", "Security_Score", "Total_Amenities"]
+    print(X_trans[preview_cols].head())
+    print("Feature Engineering test completed successfully!")

@@ -1,10 +1,18 @@
 """
-Master Orchestration Script for Real Estate Valuation & Automated Appraisal Engine.
-Runs end-to-end: Data Loading -> EDA -> Feature Engineering & Preprocessing -> Training -> Evaluation -> Prediction Demo.
+Master Orchestration Script for Indian Real Estate Valuation & Automated Appraisal Engine.
+Runs end-to-end:
+1. Data Acquisition & Validation (6 Major Indian Metropolitan Cities)
+2. Exploratory Data Analysis (EDA) & Plot Generation
+3. Feature Engineering & ColumnTransformer Preprocessing Pipeline
+4. Multi-Model 5-Fold Cross-Validation & Test Holdout Evaluation (Ridge, RF, GBR, XGBoost)
+5. Conformal Prediction Uncertainty Calibration (80% & 90% Prediction Intervals)
+6. Model Serialization & Live Indian Property Appraisal Verification
 """
 
 import sys
-import subprocess
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+
 from pathlib import Path
 
 # Add project root to sys.path
@@ -12,71 +20,71 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.data_loader import load_train_data, load_test_data, validate_dataset
+from src.data_loader import download_city_datasets_if_needed, load_clean_housing_data, validate_dataset
 from src.eda_runner import run_eda
 from src.train import train_and_evaluate_all
-from src.predict import predict_house_price
+from src.predict import predict_property_valuation
 
 
 def run_full_pipeline():
-    print("=" * 65)
-    print("  REAL ESTATE VALUATION & AUTOMATED APPRAISAL ENGINE")
-    print("             END-TO-END PIPELINE EXECUTION")
-    print("=" * 65)
+    print("=" * 70)
+    print("      BHARATPROP AI — INDIAN REAL ESTATE VALUATION ENGINE")
+    print("                 END-TO-END PIPELINE EXECUTION")
+    print("=" * 70)
 
-    # Step 1: Data Loading & Validation
-    print("\n[STEP 1/5] Loading and Validating Raw Datasets...")
-    train_df = load_train_data()
-    test_df = load_test_data()
-    train_val = validate_dataset(train_df, is_train=True)
-    test_val = validate_dataset(test_df, is_train=False)
-    print(f"  --> Train Set: {train_val['rows']} rows, {train_val['columns']} columns (Target 'SalePrice' Present: {train_val['has_sale_price']})")
-    print(f"  --> Test Set:  {test_val['rows']} rows, {test_val['columns']} columns (Target Present: {test_val['has_sale_price']})")
+    # Step 1: Data Acquisition & Validation
+    print("\n[STEP 1/5] Acquiring and Validating Indian Metropolitan Housing Dataset...")
+    download_city_datasets_if_needed()
+    clean_df = load_clean_housing_data()
+    val_summary = validate_dataset(clean_df, is_train=True)
+    print(f"  --> Validated Dataset: {val_summary['rows']:,} properties across {len(val_summary['cities'])} Metros")
+    print(f"  --> Covered Cities:    {', '.join(val_summary['cities'])}")
+    print(f"  --> Micro-Markets:     {val_summary['distinct_localities']:,} distinct localities")
 
     # Step 2: Exploratory Data Analysis & Plotting
-    print("\n[STEP 2/5] Running Exploratory Data Analysis (EDA)...")
+    print("\n[STEP 2/5] Running Exploratory Data Analysis (EDA) & Generating Plots...")
     run_eda()
 
-    # Step 3: Model Training, Evaluation & Selection
-    print("\n[STEP 3/5] Training Regression Models & Evaluating Metrics...")
+    # Step 3: Model Training, Cross-Validation & Conformal Calibration
+    print("\n[STEP 3/5] Training Regression Models, Cross-Validating & Calibrating Intervals...")
     results_df, best_model = train_and_evaluate_all()
 
     # Step 4: Verification of Inference System
-    print("\n[STEP 4/5] Testing Single Property Live Prediction...")
+    print("\n[STEP 4/5] Testing Live Indian Property Automated Valuation...")
     sample_property = {
-        "Neighborhood": "CollgCr",
-        "OverallQual": 8,
-        "GrLivArea": 2100,
-        "TotalBsmtSF": 1100,
-        "1stFlrSF": 1100,
-        "2ndFlrSF": 1000,
-        "FullBath": 2,
-        "HalfBath": 1,
-        "BedroomAbvGr": 3,
-        "TotRmsAbvGrd": 8,
-        "YearBuilt": 2008,
-        "YearRemodAdd": 2009,
-        "GarageCars": 2,
-        "GarageArea": 600,
-        "LotArea": 10500,
-        "Fireplaces": 1,
+        "City": "Bangalore",
+        "Location": "Whitefield",
+        "Area": 1650,
+        "No. of Bedrooms": 3,
+        "Resale": 0,
+        "Gymnasium": 1,
+        "SwimmingPool": 1,
+        "ClubHouse": 1,
+        "24X7Security": 1,
+        "PowerBackup": 1,
+        "CarParking": 1,
+        "LiftAvailable": 1,
+        "AC": 1,
+        "VaastuCompliant": 1
     }
-    est_price = predict_house_price(sample_property)
-    print(f"  --> Test Property in '{sample_property['Neighborhood']}' (Quality: {sample_property['OverallQual']}/10, Area: {sample_property['GrLivArea']} sqft)")
-    print(f"  --> Automated Model Appraisal: ${est_price:,.2f}")
+    appraisal = predict_property_valuation(sample_property, coverage=0.80)
+    print(f"  --> Test Property: {sample_property['City']} — {sample_property['Location']} ({sample_property['No. of Bedrooms']} BHK, {sample_property['Area']} sqft)")
+    print(f"  --> Point Valuation:      {appraisal['formatted_price']} (₹{appraisal['price_in_lakhs']:.2f} Lakhs)")
+    print(f"  --> Estimated Rate:       {appraisal['formatted_price_per_sqft']}")
+    print(f"  --> 80% Prediction Range: {appraisal['formatted_range']}")
 
-    # Step 5: Summary
-    print("\n[STEP 5/5] Pipeline Run Completed Successfully!")
-    print("=" * 65)
+    # Step 5: Summary & Run Instructions
+    print("\n[STEP 5/5] Complete Indian PropTech Pipeline Completed Successfully!")
+    print("=" * 70)
     print("  Artifacts Generated:")
-    print("  - Models:     models/house_price_model.pkl")
-    print("  - Metadata:   models/model_metadata.json")
-    print("  - Results:    outputs/results/model_comparison.csv")
-    print("  - Plots:      outputs/plots/ (10 figures generated)")
-    print("  - Web App:    app.py")
-    print("=" * 65)
-    print("\nTo launch the interactive web application, run:")
-    print("  streamlit run app.py")
+    print("  - Trained Model Bundle: models/house_price_model.pkl")
+    print("  - System Metadata:      models/model_metadata.json")
+    print("  - Comparison Leaderboard: outputs/results/model_comparison.csv")
+    print("  - Visualization Suite:  outputs/plots/ (10 figures generated)")
+    print("  - Interactive Web App:  app.py")
+    print("=" * 70)
+    print("\nTo launch the interactive Streamlit web application, run:")
+    print("  streamlit run app.py\n")
 
 
 if __name__ == "__main__":
